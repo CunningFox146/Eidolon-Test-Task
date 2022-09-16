@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Net;
+using System.Text;
 using System.Threading;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -12,15 +12,17 @@ namespace EidolonTestTask.Analytics
 {
     public class EventService : MonoBehaviour
     {
+        private static readonly string EventsSaveKey = "EventService.Events";
+
         [SerializeField] private string _serverUrl;
         [SerializeField] private float _cooldownBeforeSend;
 
-        [SerializeField] private List<AnalyticsEvent> _queuedEvenets;
+        private Queue<AnalyticsEvent> _queuedEvenets;
         private Coroutine _sendCoroutine;
         private WaitForSeconds _sendWait;
         private CancellationToken _destroyCt;
 
-        private string EventsJson => JsonConvert.SerializeObject(_queuedEvenets);
+        private AnalyticsData PostData => new AnalyticsData(_queuedEvenets);
 
         private void Awake()
         {
@@ -35,10 +37,25 @@ namespace EidolonTestTask.Analytics
             SaveCurrentEvents();
         }
 
+        public void TrackEvent(string type, string data)
+        {
+            TrackEvent(new AnalyticsEvent()
+            {
+                type = type,
+                data = data
+            });
+        }
+
+        public void TrackEvent(AnalyticsEvent analyticsEvent)
+        {
+            _queuedEvenets.Enqueue(analyticsEvent);
+            ScheduleSendingEvents();
+        }
+
         private void LoadEvents()
         {
-            var queueJson = PlayerPrefs.GetString("EventService.Queue");
-            //if (string.IsNullOrEmpty(queueJson) || queueJson == "null")
+            var queueJson = PlayerPrefs.GetString(EventsSaveKey);
+            if (string.IsNullOrEmpty(queueJson) || queueJson == "null")
             {
                 _queuedEvenets = new();
                 return;
@@ -46,7 +63,7 @@ namespace EidolonTestTask.Analytics
 
             try
             {
-                _queuedEvenets = JsonConvert.DeserializeObject<List<AnalyticsEvent>>(queueJson);
+                _queuedEvenets = JsonConvert.DeserializeObject<Queue<AnalyticsEvent>>(queueJson);
                 SendEvents();
             }
             catch (Exception exception)
@@ -57,14 +74,9 @@ namespace EidolonTestTask.Analytics
 
         private void SaveCurrentEvents()
         {
-            PlayerPrefs.SetString("EventService.Queue", _queuedEvenets.Count == 0 ? null : EventsJson);
+            string data = _queuedEvenets.Count == 0 ? null : JsonConvert.SerializeObject(_queuedEvenets);
+            PlayerPrefs.SetString(EventsSaveKey, data);
             PlayerPrefs.Save();
-        }
-
-        public void TrackEvent(AnalyticsEvent analyticsEvent)
-        {
-            _queuedEvenets.Add(analyticsEvent);
-            ScheduleSendingEvents();
         }
 
         private void ScheduleSendingEvents()
@@ -87,11 +99,13 @@ namespace EidolonTestTask.Analytics
         {
             if (_queuedEvenets.Count == 0) return;
 
+            string postData = JsonConvert.SerializeObject(PostData);
+
             var request = new UnityWebRequest(_serverUrl, UnityWebRequest.kHttpVerbPOST);
-            request.uploadHandler = new UploadHandlerRaw(new System.Text.UTF8Encoding().GetBytes(@"[{""type"":""123"",""data"":""123""}]"));
+            request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(postData));
             request.downloadHandler = new DownloadHandlerBuffer();
             request.SetRequestHeader("Content-Type", "application/json");
-            request.SetRequestHeader("cache-control", "no-cache");
+
             try
             {
                 await request.SendWebRequest().WithCancellation(_destroyCt);
@@ -101,11 +115,13 @@ namespace EidolonTestTask.Analytics
                 Debug.LogException(ex);
                 return;
             }
-            Debug.Log(request.downloadHandler.text);
+
             if (request.responseCode != 200)
             {
-                throw new Exception($"[EventService] Failed to post events. Code {request.responseCode}");
+                throw new Exception($"Failed to post events. Code {request.responseCode}: {request.error}");
             }
+
+            Debug.Log($"Events posted! Response: {request.downloadHandler.text}");
 
             _queuedEvenets.Clear();
         }

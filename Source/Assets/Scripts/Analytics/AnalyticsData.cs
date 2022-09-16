@@ -6,6 +6,11 @@ namespace EidolonTestTask.Analytics
     [Serializable]
     public struct AnalyticsData
     {
-        public List<AnalyticsEvent> events { get; set; }
+        public Queue<AnalyticsEvent> events { get; set; }
+
+        public AnalyticsData(Queue<AnalyticsEvent> queuedEvenets)
+        {
+            events = queuedEvenets;
+        }
     }
 }

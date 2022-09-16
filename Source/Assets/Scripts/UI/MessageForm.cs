@@ -12,11 +12,7 @@ namespace EidolonTestTask.UI
 
         public void Send()
         {
-            _eventService.TrackEvent(new AnalyticsEvent()
-            {
-                data = _data.text,
-                type = _type.text,
-            });
+            _eventService.TrackEvent(_type.text, _data.text);
         }
     }
 }
