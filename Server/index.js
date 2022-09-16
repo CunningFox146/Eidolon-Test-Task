@@ -5,7 +5,7 @@ app.use(express.json());
 
 app.post('*', (req, res) => {
   console.log(req.body);
-  res.send(200);
+  res.send(req.body);
 });
 
 app.listen(3000);

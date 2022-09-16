@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Net;
 using System.Threading;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -37,7 +38,7 @@ namespace EidolonTestTask.Analytics
         private void LoadEvents()
         {
             var queueJson = PlayerPrefs.GetString("EventService.Queue");
-            if (string.IsNullOrEmpty(queueJson) || queueJson == "null")
+            //if (string.IsNullOrEmpty(queueJson) || queueJson == "null")
             {
                 _queuedEvenets = new();
                 return;
@@ -86,12 +87,26 @@ namespace EidolonTestTask.Analytics
         {
             if (_queuedEvenets.Count == 0) return;
 
-            var request = UnityWebRequest.Post(_serverUrl, _queuedEvenets.ToString());
-            await request.SendWebRequest().WithCancellation(_destroyCt);
+            var request = new UnityWebRequest(_serverUrl, UnityWebRequest.kHttpVerbPOST);
+            request.uploadHandler = new UploadHandlerRaw(new System.Text.UTF8Encoding().GetBytes(@"[{""type"":""123"",""data"":""123""}]"));
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+            request.SetRequestHeader("cache-control", "no-cache");
+            try
+            {
+                await request.SendWebRequest().WithCancellation(_destroyCt);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+                return;
+            }
+            Debug.Log(request.downloadHandler.text);
             if (request.responseCode != 200)
             {
                 throw new Exception($"[EventService] Failed to post events. Code {request.responseCode}");
             }
+
             _queuedEvenets.Clear();
         }
     }
