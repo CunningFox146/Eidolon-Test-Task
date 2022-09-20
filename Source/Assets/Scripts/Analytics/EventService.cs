@@ -54,8 +54,7 @@ namespace EidolonTestTask.Analytics
 
         private void LoadEvents()
         {
-            var queueJson = PlayerPrefs.GetString(EventsSaveKey);
-            if (string.IsNullOrEmpty(queueJson) || queueJson == "null")
+            if (!PlayerPrefs.HasKey(EventsSaveKey))
             {
                 _queuedEvenets = new();
                 return;
@@ -63,6 +62,7 @@ namespace EidolonTestTask.Analytics
 
             try
             {
+                var queueJson = PlayerPrefs.GetString(EventsSaveKey);
                 _queuedEvenets = JsonConvert.DeserializeObject<Queue<AnalyticsEvent>>(queueJson);
                 SendEvents();
             }
@@ -74,8 +74,15 @@ namespace EidolonTestTask.Analytics
 
         private void SaveCurrentEvents()
         {
-            string data = _queuedEvenets.Count == 0 ? null : JsonConvert.SerializeObject(_queuedEvenets);
-            PlayerPrefs.SetString(EventsSaveKey, data);
+            if (_queuedEvenets.Count == 0)
+            {
+                PlayerPrefs.DeleteKey(EventsSaveKey);
+            }
+            else
+            {
+                string json = JsonConvert.SerializeObject(_queuedEvenets);
+                PlayerPrefs.SetString(EventsSaveKey, json);
+            }
             PlayerPrefs.Save();
         }
 
